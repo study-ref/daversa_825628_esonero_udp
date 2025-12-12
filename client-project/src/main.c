@@ -87,13 +87,13 @@ int main(int argc, char *argv[]) {
 		if (get_addr_info != 0) {
 			fprintf(stderr, "Risoluzione server fallita: %d\n", get_addr_info);
 		} else {
-			fprintf(stderr, "Risoluzione server fallita: no result\n");
+			fprintf(stderr, "Risoluzione server fallita: nessun risultato.\n");
 		}
 #else
 		if (get_addr_info != 0) {
 			fprintf(stderr, "Risoluzione server fallita: %s\n", gai_strerror(get_addr_info));
 		} else {
-			fprintf(stderr, "Risoluzione server fallita: no result\n");
+			fprintf(stderr, "Risoluzione server fallita: nessun risultato.\n");
 		}
 #endif
 		clearwinsock();
@@ -123,7 +123,7 @@ int main(int argc, char *argv[]) {
 
 	// Parsing e validazione della richiesta (-r)
 	if (!req_str) {
-		fprintf(stderr, "Uso: %s [-s server] [-p port] -r \"type city\"\n", argv[0]);
+		fprintf(stderr, "In uso: %s [-s server] [-p port] -r \"type city\"\n", argv[0]);
 		closesocket(my_socket);
 		freeaddrinfo(res);
 		clearwinsock();
@@ -254,4 +254,5 @@ int main(int argc, char *argv[]) {
 	freeaddrinfo(res);
 	clearwinsock();
 	return 0;
+
 }
