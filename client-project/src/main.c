@@ -232,7 +232,7 @@ int main(int argc, char *argv[]) {
 		if (city[0])
 			city[0] = (char)toupper((unsigned char)city[0]);
 		if (resp_type == 't') {
-			printf("%s: Temperatura = %.1f °C\n", city, response_value);
+			printf("%s: Temperatura = %.1f°C\n", city, response_value);
 		} else if (resp_type == 'h') {
 			printf("%s: Umidità = %.1f%%\n", city, response_value);
 		} else if (resp_type == 'w') {
@@ -256,4 +256,5 @@ int main(int argc, char *argv[]) {
 	return 0;
 
 }
+
 
