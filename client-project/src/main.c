@@ -228,9 +228,12 @@ int main(int argc, char *argv[]) {
 	printf("Ricevuto risultato dal server %s (ip %s). ", server_name, server_ip);
 
 	if (status == STATUS_OK) {
-		// Capitalizzazione prima lettera della città per output
-		if (city[0])
+		// Standardizzazione output
+		if (city[0]) {
 			city[0] = (char)toupper((unsigned char)city[0]);
+			for (size_t i = 1; city[i]; ++i)
+        		city[i] = (char)tolower((unsigned char)city[i]);
+		}
 		if (resp_type == 't') {
 			printf("%s: Temperatura = %.1f°C\n", city, response_value);
 		} else if (resp_type == 'h') {
@@ -239,15 +242,13 @@ int main(int argc, char *argv[]) {
 			printf("%s: Vento = %.1f km/h\n", city, response_value);
 		} else if (resp_type == 'p') {
 			printf("%s: Pressione = %.1f hPa\n", city, response_value);
-		} else {
-			printf("Tipo di risposta \"%c\" non riconosciuto.\n", resp_type);
 		}
 	} else if (status == STATUS_CITY_NOT_AVAILABLE) {
-		printf("%s", "Città non disponibile.\n");
+		printf("%s", "Città non disponibile\n");
 	} else if (status == STATUS_INVALID_REQUEST) {
-		printf("%s", "Richiesta non valida.\n");
+		printf("%s", "Richiesta non valida\n");
 	} else {
-		printf("%s", "Errore.\n");
+		printf("%s", "Errore\n");
 	}
 
 	closesocket(my_socket);
@@ -256,5 +257,6 @@ int main(int argc, char *argv[]) {
 	return 0;
 
 }
+
 
 
