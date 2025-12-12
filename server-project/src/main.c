@@ -114,11 +114,14 @@ int main(int argc, char *argv[]) {
 		strncpy(city, (const char*)(req_buf + 1), CITY_NAME_LEN - 1);
 		city[CITY_NAME_LEN - 1] = '\0';
 
-		// Capitalizzazione della prima lettera per il logging
+		// Standardizzazione per il logging
 		char city_log[CITY_NAME_LEN];
 		strncpy(city_log, city, CITY_NAME_LEN);
-		if (city_log[0])
+		if (city_log[0]) {
 			city_log[0] = (char)toupper((unsigned char)city_log[0]);
+			for (size_t i = 1; city_log[i]; ++i)
+        		city_log[i] = (char)tolower((unsigned char)city_log[i]);
+		}
 
 		// Log richiesta
 		printf("Richiesta ricevuta da %s (ip %s): type='%c', city='%s'\n", client_name, client_ip, req_type ? req_type : '?', city_log);
@@ -183,4 +186,5 @@ int main(int argc, char *argv[]) {
 	closesocket(server_socket);
 	clearwinsock();
 	return 0;
+
 }
