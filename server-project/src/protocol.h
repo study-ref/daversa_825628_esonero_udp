@@ -8,11 +8,19 @@
 #ifndef PROTOCOL_H_
 #define PROTOCOL_H_
 
-// Porta di default
 #define SERVER_PORT 56700
 
 // Lunghezza massima del nome della città (incluso terminatore '\0')
-#define CITY_NAME_LEN 25
+#define CITY_NAME_LEN 64
+
+// Lunghezza della richiesta e della risposta
+#define REQUEST_LEN   (1 + CITY_NAME_LEN)	// type (1) + city (CITY_NAME_LEN)
+#define RESPONSE_LEN  (4 + 1 + 4)			// status (4) + type (1) + value (4)
+
+// Offset simbolici per il buffer di risposta
+#define RESP_STATUS_OFFSET 0
+#define RESP_TYPE_OFFSET   4
+#define RESP_VALUE_OFFSET  5
 
 // Codici di stato
 #define STATUS_OK 0
@@ -34,30 +42,8 @@ typedef struct {
 	float value;
 } weather_response_t;
 
-// Funzioni ausiliarie (ricezione, invio e generazione valori nel server)
-static int recv_all(int sock, void *buf, int len) {
-	char *p = (char*)buf;
-	int recvd = 0;
-	while (recvd < len) {
-		int r = recv(sock, p + recvd, len - recvd, 0);
-		if (r <= 0)
-			return -1;
-		recvd += r;
-	}
-	return recvd;
-}
-
-static int send_all(int sock, const void *buf, int len) {
-	const char *p = (const char*)buf;
-	int sent = 0;
-	while (sent < len) {
-		int r = send(sock, p + sent, len - sent, 0);
-		if (r <= 0)
-			return -1;
-		sent += r;
-	}
-	return sent;
-}
+/* Prototipo funzione esempio
+int connect_to_server(const char* server_address); */
 
 static int city_supported(const char *city) {
 	if (!city)
@@ -70,7 +56,7 @@ static int city_supported(const char *city) {
 	const char *cities[] = {"BARI","ROMA","MILANO","NAPOLI","TORINO","PALERMO","GENOVA","BOLOGNA","FIRENZE","VENEZIA"};
 	for (size_t i = 0; i < sizeof(cities)/sizeof(cities[0]); ++i) {
 		if (strcmp(tmp, cities[i]) == 0)
-			return -1;
+			return 1;
 	}
 	return 0;
 }

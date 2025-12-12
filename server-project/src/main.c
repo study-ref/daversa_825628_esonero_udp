@@ -26,6 +26,8 @@ typedef int socklen_t;
 #include <string.h>
 #include <ctype.h>
 #include <time.h>
+#include <stdint.h>
+
 #include "protocol.h"
 
 
@@ -41,7 +43,7 @@ int main(int argc, char *argv[]) {
 	// Inizializzazione Winsock
 	WSADATA wsa_data;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0) {
-		printf("%s", "Errore in WSAStartup()\n");
+		fprintf(stderr, "Errore in WSAStartup()\n");
 		return -1;
 	}
 #endif
@@ -57,10 +59,10 @@ int main(int argc, char *argv[]) {
 	// Inizializzazione generatore di numeri pseudocasuali
 	srand((unsigned)time(NULL));
 
-	// Creazione socket
-	int server_socket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+	// Creazione socket UDP
+	int server_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (server_socket < 0) {
-		printf("%s", "Creazione della socket fallita.\n");
+		fprintf(stderr, "Creazione della socket UDP fallita.\n");
 		clearwinsock();
 		return -1;
 	}
@@ -69,43 +71,42 @@ int main(int argc, char *argv[]) {
 	struct sockaddr_in server_addr;
 	memset(&server_addr, 0, sizeof(server_addr));
 	server_addr.sin_family = AF_INET;
-	server_addr.sin_port = htons(SERVER_PORT);
+	server_addr.sin_port = htons(port);
 	server_addr.sin_addr.s_addr = INADDR_ANY;
 
 	// Bind
 	if (bind(server_socket, (struct sockaddr*) &server_addr, sizeof(server_addr)) < 0) {
-		printf("%s", "bind() fallito.\n");
+		fprintf(stderr, "bind() fallito.\n");
 		closesocket(server_socket);
 		clearwinsock();
 		return -1;
 	}
 
-	// Listen
-	if (listen(server_socket, QUEUE_SIZE) < 0) {
-		printf("%s", "listen() fallito.\n");
-		closesocket(server_socket);
-		clearwinsock();
-		return -1;
-	}
+	printf("Server UDP in ascolto sulla porta %d...\n", port);
 
-	// Loop di accettazione delle connessioni
-	printf("Server in ascolto sulla porta %d...\n", port);
 	while (1) {
-		struct sockaddr_in client_addr;
+		unsigned char req_buf[REQUEST_LEN];
+		struct sockaddr_storage client_addr;
 		socklen_t client_len = sizeof(client_addr);
-		int client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_len);
-		if (client_socket < 0) {
-			printf("%s", "accept() fallito.\n");
+		ssize_t recvd = recvfrom(server_socket, (char*)req_buf, (int)sizeof(req_buf), 0, (struct sockaddr*)&client_addr, &client_len);
+		if (recvd != (ssize_t)sizeof(req_buf)) {
+			// Si ignorano datagrammi malformati
 			continue;
 		}
 
-		char *client_ip = inet_ntoa(client_addr.sin_addr);
-
-		// Ricezione richiesta: 1 byte type + CITY_NAME_LEN bytes
-		char req_buf[1 + CITY_NAME_LEN];
-		if (recv_all(client_socket, req_buf, (int)sizeof(req_buf)) != (int)sizeof(req_buf)) {
-			closesocket(client_socket);
-			continue;
+		// Conversione dell'indirizzo del client in nome e IP per il logging
+		char client_ip[INET_ADDRSTRLEN] = {0};
+		char client_name[NI_MAXHOST];
+		if (client_addr.ss_family == AF_INET) {
+			struct sockaddr_in *c = (struct sockaddr_in*)&client_addr;
+			inet_ntop(AF_INET, &c->sin_addr, client_ip, sizeof(client_ip));
+			if (getnameinfo((struct sockaddr*)c, sizeof(struct sockaddr_in), client_name, sizeof(client_name), NULL, 0, 0) != 0) {
+				strncpy(client_name, client_ip, sizeof(client_name)-1);
+				client_name[sizeof(client_name)-1] = '\0';
+			}
+		} else {
+			strncpy(client_ip, "?", sizeof(client_ip)-1);
+			strncpy(client_name, "?", sizeof(client_name)-1);
 		}
 
 		char req_type = (char)req_buf[0];
@@ -113,57 +114,73 @@ int main(int argc, char *argv[]) {
 		strncpy(city, (const char*)(req_buf + 1), CITY_NAME_LEN - 1);
 		city[CITY_NAME_LEN - 1] = '\0';
 
+		// Capitalizzazione della prima lettera per il logging
+		char city_log[CITY_NAME_LEN];
+		strncpy(city_log, city, CITY_NAME_LEN);
+		if (city_log[0])
+			city_log[0] = (char)toupper((unsigned char)city_log[0]);
+
 		// Log richiesta
-		printf("Richiesta '%c %s' dal client IP %s\n", req_type ? req_type : '?', city, client_ip);
+		printf("Richiesta ricevuta da %s (ip %s): type='%c', city='%s'\n", client_name, client_ip, req_type ? req_type : '?', city_log);
 
 		// Validazione
-		int status = STATUS_OK;
+		unsigned int status = STATUS_OK;
 		char resp_type = req_type;
 		float value = 0.0f;
-
-		int type_valid = (req_type == 't' || req_type == 'h' || req_type == 'w' || req_type == 'p');
-		if (!type_valid) {
+        
+		uint8_t type_valid = (req_type == 't' || req_type == 'h' || req_type == 'w' || req_type == 'p');
+		// Buffer di risposta
+		unsigned char resp_buf[RESPONSE_LEN];
+		// Controllo di tab e/o caratteri non validi in city
+		uint8_t not_allowed = 0;
+		for (const char *p = city; *p; ++p) {
+			if (*p == '\t') {
+				not_allowed++;
+				break;
+			}
+			if (!isalpha((unsigned char)*p) && *p != ' ') {
+				not_allowed++;
+				break;
+			}
+		}
+		if (!type_valid || not_allowed) {
 			status = STATUS_INVALID_REQUEST;
 			resp_type = '\0';
 		} else if (!city_supported(city)) {
 			status = STATUS_CITY_NOT_AVAILABLE;
 			resp_type = '\0';
 		} else {
-			// Generazione valore
-			if (req_type == 't') value = get_temperature();
-			else if (req_type == 'h') value = get_humidity();
-			else if (req_type == 'w') value = get_wind();
-			else if (req_type == 'p') value = get_pressure();
+			if (req_type == 't')
+				value = get_temperature();
+			else if (req_type == 'h')
+				value = get_humidity();
+			else if (req_type == 'w')
+				value = get_wind();
+			else if (req_type == 'p')
+				value = get_pressure();
 		}
-
-		// Preparazione buffer di risposta: status (4 bytes), type (1 byte), value (4 bytes)
-		char resp_buf[4 + 1 + 4];
-		int net_status = htonl(status);
-		memcpy(resp_buf, &net_status, 4);
-		resp_buf[4] = (char)resp_type;
-		int value_bits = 0;
+		uint32_t net_status = htonl((uint32_t)status);
+		memcpy(resp_buf + RESP_STATUS_OFFSET, &net_status, sizeof(net_status));
+		resp_buf[RESP_TYPE_OFFSET] = resp_type;
+		uint32_t valbits = 0;
 		if (status == STATUS_OK) {
-			int tmp;
-			memcpy(&tmp, &value, sizeof(float));
-			value_bits = htonl(tmp);
+			uint32_t tmp;
+			memcpy(&tmp, &value, sizeof(value));
+			valbits = htonl(tmp);
 		} else {
-			int tmp = 0;
-			value_bits = htonl(tmp);
+			uint32_t tmp = 0;
+			valbits = htonl(tmp);
 		}
-		memcpy(resp_buf + 5, &value_bits, 4);
+		memcpy(resp_buf + RESP_VALUE_OFFSET, &valbits, sizeof(valbits));
 
-		// Invio risposta
-		if (send_all(client_socket, resp_buf, (int)sizeof(resp_buf)) != (int)sizeof(resp_buf)) {
-			printf("%s", "send_all() fallito.\n");
+		// Invio risposta con sendto verso l'indirizzo del client ricevuto
+		ssize_t sent = sendto(server_socket, (const char*)resp_buf, (int)sizeof(resp_buf), 0, (struct sockaddr*)&client_addr, client_len);
+		if (sent != (ssize_t)sizeof(resp_buf)) {
+			fprintf(stderr, "Errore invio risposta al client %s (ip %s).\n", client_name, client_ip);
 		}
-
-		//Chiusura socket client
-		closesocket(client_socket);
 	}
 
-	//Chiusura server socket
 	closesocket(server_socket);
-
 	clearwinsock();
 	return 0;
 }
