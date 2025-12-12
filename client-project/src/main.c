@@ -41,7 +41,7 @@ void clearwinsock() {
 
 int main(int argc, char *argv[]) {
 	// Parsing argomenti
-	const char *server_address = "127.0.0.1";
+	const char *server_address = "localhost";
 	int port = SERVER_PORT;
 	const char *req_str = NULL;
 
@@ -256,3 +256,4 @@ int main(int argc, char *argv[]) {
 	return 0;
 
 }
+
