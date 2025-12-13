@@ -141,7 +141,7 @@ int main(int argc, char *argv[]) {
 				not_allowed++;
 				break;
 			}
-			if (!isalpha((unsigned char)*p) && *p != ' ') {
+			if (!isalnum((unsigned char)*p) && *p != ' ') {
 				not_allowed++;
 				break;
 			}
@@ -188,3 +188,4 @@ int main(int argc, char *argv[]) {
 	return 0;
 
 }
+
